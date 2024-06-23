@@ -10,3 +10,5 @@ git clone https://github.com/rachidoutaleb/auto-hardening.git
 cd auto-hardening
 sudo sh ./Hardening.sh
 ```
+
+![image_1_750x450](https://github.com/rachidoutaleb/auto-hardening/assets/123762098/25e892ac-4a8d-4d29-935f-a580b4dde076)
