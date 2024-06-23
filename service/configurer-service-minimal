@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# Fonction pour simuler une barre de progression
+progress_bar() {
+    echo -n "Progression : ["
+    for i in {1..10}; do
+        echo -n "#"
+        sleep 1
+    done
+    echo "] 100%"
+}
+
+# Configuration de Google Authenticator pour le système
+echo "Configuration de Google Authenticator pour l'authentification à deux facteurs du système..."
+
+# Vérifier si Google Authenticator est déjà installé
+if ! command -v google-authenticator &> /dev/null; then
+    echo "Installation de Google Authenticator..."
+    apt-get install libpam-google-authenticator -y
+else
+    echo "Google Authenticator est déjà installé."
+fi
+
+# Configurer PAM pour utiliser Google Authenticator
+if ! grep -q "auth required pam_google_authenticator.so" /etc/pam.d/common-auth; then
+    echo "auth required pam_google_authenticator.so" >> /etc/pam.d/common-auth
+    echo "Google Authenticator a été ajouté à la configuration PAM."
+else
+    echo "Google Authenticator est déjà configuré dans PAM."
+fi
+
+echo "Pour activer l'authentification à deux facteurs, chaque utilisateur doit exécuter 'google-authenticator' et suivre les instructions."
+
+progress_bar
+
+echo "Début de la configuration des services selon les recommandations..."
+
+# Listage des services installés et actifs
+echo "Liste des services installés et actifs :"
+systemctl list-units --type service --state=running
+echo ""
+
+# Demander à l'utilisateur les services à désactiver
+read -p "Entrez les noms des services à désactiver, séparés par un espace : " services_to_disable
+
+# Désactivation des services choisis
+for service in $services_to_disable
+do
+    echo "Désactivation du service $service..."
+    systemctl stop "$service"
+    systemctl disable "$service"
+    progress_bar
+done
+echo "Services désactivés."
+echo ""
+
+# Configuration de PAM pour la protection des mots de passe
+echo "Configuration de PAM pour la protection des mots de passe..."
+echo "Choisissez la méthode de chiffrement pour les mots de passe :"
+echo "1. yescrypt"
+echo "2. SHA-512crypt"
+read -p "Entrez votre choix (1 ou 2): " choix
+
+# Ajout de la configuration à /etc/pam.d/common-password
+echo "Mise à jour de /etc/pam.d/common-password avec la configuration choisie..."
+
+case $choix in
+    1)
+        echo "password required pam_unix.so obscure yescrypt rounds=11" >> /etc/pam.d/common-password
+        echo "Configuration yescrypt ajoutée."
+        ;;
+    2)
+        echo "password required pam_unix.so obscure sha512 rounds=65536" >> /etc/pam.d/common-password
+        echo "Configuration SHA-512crypt ajoutée."
+        ;;
+    *)
+        echo "Choix non valide. Aucune configuration ajoutée."
+        ;;
+esac
+
+progress_bar
+
+echo "Veuillez vérifier le fichier /etc/pam.d/common-password pour vous assurer que la configuration est correcte."
+
+# Réduire la surface d'attaque des services réseau
+echo "Réduction de la surface d'attaque des services réseau..."
+echo "Liste des services en écoute sur le réseau :"
+sockstat
+echo "Veuillez configurer les services réseau pour écouter uniquement sur les interfaces appropriées."
+
+progress_bar
+
+echo "Configuration terminée. Veuillez suivre les recommandations supplémentaires manuellement."
+

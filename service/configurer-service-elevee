@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Fonction pour simuler une barre de progression
+progress_bar() {
+    echo -n "Progression : ["
+    for i in {1..10}; do
+        echo -n "#"
+        sleep 1
+    done
+    echo "] 100%"
+}
+
+echo "Durcissement des composants de cloisonnement..."
+echo "Choisissez un composant à durcir :"
+echo "1. Conteneurs Docker"
+echo "2. Émulateur QEMU"
+echo "3. Hyperviseur Xen"
+echo "4. Hyperviseur KVM"
+echo "5. Machines Virtuelles avec VirtualBox"
+read -p "Entrez votre choix (1-5): " choix
+
+case $choix in
+    1)
+        echo "Durcissement des conteneurs Docker..."
+        docker update --cpu-quota=50000 my_container
+        # Commande supplémentaire pour limiter l'utilisation de la mémoire
+        docker update --memory=256m my_container
+        progress_bar
+        ;;
+    2)
+        echo "Durcissement de l'émulateur QEMU..."
+        qemu-system-x86_64 -net none my_vm_image
+        # Commande supplémentaire pour limiter les ressources CPU
+        qemu-system-x86_64 -cpu host, maxcpus=2 my_vm_image
+        progress_bar
+        ;;
+    3)
+        echo "Durcissement du hyperviseur Xen..."
+        xe vm-param-set uuid=my_vm_uuid xen-policy=security_policy
+        # Commande supplémentaire pour limiter la mémoire RAM
+        xe vm-memory-limits-set uuid=my_vm_uuid static-max=1G dynamic-max=1G dynamic-min=512M static-min=256M
+        progress_bar
+        ;;
+    4)
+        echo "Durcissement du hyperviseur KVM..."
+        virsh edit my_vm_name
+        # Commande supplémentaire pour limiter le nombre de vCPUs
+        virsh setvcpus my_vm_name 2 --maximum
+        progress_bar
+        ;;
+    5)
+        echo "Durcissement des machines virtuelles avec VirtualBox..."
+        VBoxManage modifyvm my_vm_name --nic1 intnet
+        # Commande supplémentaire pour limiter la mémoire vidéo
+        VBoxManage modifyvm my_vm_name --vram 128
+        progress_bar
+        ;;
+    *)
+        echo "Choix non valide."
+        ;;
+esac
+
+echo "Configuration terminée. Veuillez suivre les recommandations supplémentaires manuellement."
+

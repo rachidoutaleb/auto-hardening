@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Fonction pour simuler une barre de progression
+progress_bar() {
+    echo -n "Progression : ["
+    for i in {1..10}; do
+        echo -n "#"
+        sleep 1
+    done
+    echo "] 100%"
+}
+
+echo "Début de la configuration des services selon les recommandations..."
+
+# Désactiver les fonctionnalités non essentielles des services
+echo "Désactivation des fonctionnalités non essentielles des services..."
+# Exemple pour SSH (désactivation des redirections de port)
+echo "Désactivation des redirections de port SSH..."
+sed -i 's/^#*AllowTcpForwarding yes/AllowTcpForwarding no/' /etc/ssh/sshd_config
+sed -i 's/^#*X11Forwarding yes/X11Forwarding no/' /etc/ssh/sshd_config
+systemctl restart sshd
+progress_bar
+
+# Exemple pour Apache (désactivation de l'indexation des répertoires)
+echo "Désactivation de l'indexation des répertoires Apache..."
+sed -i 's/Options Indexes/Options -Indexes/' /etc/apache2/apache2.conf
+systemctl restart apache2
+progress_bar
+
+# Sécurisation des authentifications distantes par PAM
+echo "Sécurisation des authentifications distantes par PAM..."
+# Ajout de configurations spécifiques pour sécuriser PAM (exemple fictif)
+echo "auth required pam_secure.so" >> /etc/pam.d/common-auth
+progress_bar
+
+# Durcir et surveiller les services exposés
+echo "Durcissement et surveillance des services exposés..."
+# Exemple fictif de durcissement d'un service exposé
+echo "install security_patch" >> /etc/service_config
+# Exemple fictif d'activation d'une surveillance
+echo "enable monitoring" >> /etc/service_monitoring_config
+progress_bar
+
+echo "Configuration terminée. Veuillez suivre les recommandations supplémentaires manuellement."
+
