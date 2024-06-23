@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Define color codes
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+# Function to display green messages
+afficher_message_vert() { 
+    echo -e "${GRAS}${VERT}$1${NORMAL}"; 
+}
+
+# Function to display red messages
+afficher_message_rouge() { 
+    echo -e "${GRAS}${ROUGE}$1${NORMAL}"; 
+}
+
+echo ""
+
+# Display initial message
+echo -e "\033[45m Application of the recommended Minimal noyau configuration...\033[0m"
+
+# Display a green message indicating no recommendations
+echo ""
+afficher_message_vert "No recommendations for Minimal level."
+echo ""
+
+# End of script message
+echo -e "\033[45m Minimal hardening configuration applied successfully\033[0m"
+echo ""

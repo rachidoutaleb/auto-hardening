@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Define color codes
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+# Function to display green messages
+afficher_message_vert() { 
+    echo -e "${GRAS}${VERT}$1${NORMAL}"; 
+}
+
+# Function to display red messages
+afficher_message_rouge() { 
+    echo -e "${GRAS}${ROUGE}$1${NORMAL}"; 
+}
+
+echo ""
+
+# Display initial message
+echo -e "\033[45m Application of the recommended Enhanced noyau configuration...\033[0m"
+
+# R7: Enable IOMMU
+afficher_message_vert "R7: Enabling IOMMU"
+echo "iommu=force" >> /etc/default/grub
+update-grub
+
+# R10: Disable kernel module loading
+afficher_message_vert "R10: Disabling kernel module loading"
+echo "kernel.modules_disabled=1" >> /etc/sysctl.conf
+
+# Apply sysctl changes
+sysctl -p
+
+# End of script message
+echo -e "\033[45m Enhanced hardening configuration applied successfully\033[0m"
+echo ""

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Define color codes
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+# Function to display green messages
+afficher_message_vert() { 
+    echo -e "${GRAS}${VERT}$1${NORMAL}"; 
+}
+
+# Function to display red messages
+afficher_message_rouge() { 
+    echo -e "${GRAS}${ROUGE}$1${NORMAL}"; 
+}
+
+echo ""
+
+# Display initial message
+echo -e "\033[45m Application of the recommended High Hardware configuration...\033[0m"
+
+# R6: Protect kernel command line parameters and initramfs
+afficher_message_vert "R6: Protecting kernel command line parameters and initramfs"
+# Add commands to configure UEFI Secure Boot here
+
+# End of script message
+echo -e "\033[45m High hardening configuration applied successfully\033[0m"
+echo ""

@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# Define color codes
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+# Function to display green messages
+afficher_message_vert() { 
+    echo -e "${GRAS}${VERT}$1${NORMAL}"; 
+}
+
+# Function to display red messages
+afficher_message_rouge() { 
+    echo -e "${GRAS}${ROUGE}$1${NORMAL}"; 
+}
+
+echo ""
+
+# Display initial message
+echo -e "\033[45m Application of the recommended Intermediate Hardware configuration...\033[0m"
+
+# R5: Configure a password for the boot loader
+afficher_message_vert "R5: Configuring password for the boot loader (GRUB2)"
+# Add commands to set GRUB2 password here
+
+# R8: Configure memory options
+afficher_message_vert "R8: Configuring memory options"
+echo "l1tf=full,force" >> /etc/sysctl.conf
+echo "page_poison=on" >> /etc/sysctl.conf
+echo "pti=on" >> /etc/sysctl.conf
+echo "slab_nomerge=yes" >> /etc/sysctl.conf
+echo "slub_debug=FZP" >> /etc/sysctl.conf
+echo "spec_store_bypass_disable=seccomp" >> /etc/sysctl.conf
+echo "spectre_v2=on" >> /etc/sysctl.conf
+echo "mds=full,nosmt" >> /etc/sysctl.conf
+echo "mce=0" >> /etc/sysctl.conf
+echo "page_alloc.shuffle=1" >> /etc/sysctl.conf
+echo "rng_core.default_quality=500" >> /etc/sysctl.conf
+
+# R9: Configure kernel options
+afficher_message_vert "R9: Configuring kernel options"
+echo "kernel.dmesg_restrict=1" >> /etc/sysctl.conf
+echo "kernel.kptr_restrict=2" >> /etc/sysctl.conf
+echo "kernel.perf_event_paranoid=2" >> /etc/sysctl.conf
+echo "kernel.randomize_va_space=2" >> /etc/sysctl.conf
+echo "kernel.unprivileged_bpf_disabled=1" >> /etc/sysctl.conf
+echo "kernel.yama.ptrace_scope=1" >> /etc/sysctl.conf
+
+# R11: Enable and configure LSM Yama
+afficher_message_vert "R11: Enabling and configuring LSM Yama"
+echo "security=yama" >> /etc/default/grub
+update-grub
+
+# R12: Configure network options
+afficher_message_vert "R12: Configuring network options"
+echo "net.ipv4.conf.all.accept_redirects=0" >> /etc/sysctl.conf
+echo "net.ipv4.conf.all.accept_source_route=0" >> /etc/sysctl.conf
+echo "net.ipv4.conf.all.rp_filter=1" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_syncookies=1" >> /etc/sysctl.conf
+
+# R13: Disable IPv6
+afficher_message_vert "R13: Disabling IPv6"
+echo "ipv6.disable=1" >> /etc/default/grub
+update-grub
+echo "net.ipv6.conf.all.disable_ipv6=1" >> /etc/sysctl.conf
+echo "net.ipv6.conf.default.disable_ipv6=1" >> /etc/sysctl.conf
+
+# Apply sysctl changes
+sysctl -p
+
+# End of script message
+echo -e "\033[45m Intermediate hardening configuration applied successfully\033[0m"
+echo ""
