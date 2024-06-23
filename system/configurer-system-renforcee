@@ -1,0 +1,157 @@
+#!/bin/bash
+
+
+# Restreindre les droits d'accès aux fichiers et aux répertoires sensibles
+echo "restreindre les droits d'accès aux fichiers et aux répertoires sensibles."
+chown root:root /etc/shadow /etc/gshadow /etc/ssh /etc/ssl /etc/pam.d
+chmod 600 /etc/shadow /etc/gshadow /etc/ssh /etc/ssl /etc/pam.d
+chown www-data:www-data /var/www /etc/apache2
+chmod 400 /var/www /etc/apache2
+echo "Les droits d'accès aux fichiers et aux répertoires sensibles ont été restreints."
+
+# Séparer les répertoires temporaires des utilisateurs
+echo "séparation les répertoires temporaires des utilisateurs."
+sudo apt install libpam-tmpdir
+echo "session optional pam_mktemp.so debug mask=0077 dir=/tmp/user/\$USER" >> /etc/pam.d/common-session
+mkdir /tmp/user
+chmod 700 /tmp/user
+echo "Les répertoires temporaires des utilisateurs ont été séparés."
+
+
+
+
+
+
+
+
+
+
+# Définir une fonction pour afficher un message d'erreur et quitter le script
+error() {
+  echo "Erreur : $1" >&2
+  exit 1
+}
+
+# Vérifier que sudoedit est installé
+if ! command -v sudoedit &> /dev/null; then
+  error "sudoedit n'est pas installé"
+fi
+
+# Vérifier que AppArmor est installé et activé
+if ! command -v apparmor_status &> /dev/null; then
+  error "AppArmor n'est pas installé"
+  sudo apt-get install apparmor
+fi
+
+if ! apparmor_status | grep -q "apparmor module is loaded"; then
+  error "AppArmor n'est pas activé"
+fi
+
+echo "Activer les profils de sécurité AppArmor"
+echo "Vous pouvez choisir parmi les profils suivants :"
+echo "1) syslogd : le démon de journalisation du système"
+echo "2) ntpd : le démon de synchronisation de l'horloge du système"
+echo "3) sshd : le démon du protocole SSH"
+echo "4) Tous les profils"
+echo "Entrez le numéro du profil que vous voulez activer (1-4) :"
+read profile
+case $profile in
+  1)
+    echo "Vous avez choisi d'activer le profil pour syslogd"
+    aa-enforce /etc/apparmor.d/usr.sbin.syslogd
+    echo "Le profil pour syslogd a été activé en mode enforce"
+    ;;
+  2)
+    echo "Vous avez choisi d'activer le profil pour ntpd"
+    aa-enforce /etc/apparmor.d/usr.sbin.ntpd
+    echo "Le profil pour ntpd a été activé en mode enforce"
+    ;;
+  3)
+    echo "Vous avez choisi d'activer le profil pour sshd"
+    aa-enforce /etc/apparmor.d/usr.sbin.sshd
+    echo "Le profil pour sshd a été activé en mode enforce"
+    ;;
+  4)
+    echo "Vous avez choisi d'activer tous les profils"
+    
+    sudo apparmor_parser -r /etc/apparmor.d/*
+
+    echo "Tous les profils ont été activés en mode enforce"
+    ;;
+  *)
+    error "Entrée invalide"
+    ;;
+esac
+
+# Afficher le statut d'AppArmor
+echo "Voici le statut d'AppArmor :"
+aa-status
+
+# Afficher un message de fin
+echo "Le script est terminé. Votre système est maintenant plus sécurisé."
+    
+echo "modifier les directives de configuration sudo : "
+  echo "Defaults noexec,requiretty,use_pty,umask=0077,ignore_dot,env_reset" >> /etc/sudoers
+  echo "Les directives de configuration sudo ont été modifiées."
+
+check_mount_options() {
+  local mount_point=$1
+  local expected_options=$2
+  local description=$3
+
+  if grep -q "$mount_point" /etc/mtab; then
+    local current_options=$(grep "$mount_point" /etc/mtab | cut -d ' ' -f 4)
+    if [ "$current_options" != "$expected_options" ]; then
+      sudo mount -o remount,"$expected_options" "$mount_point"
+      echo "La partition $mount_point ($description) a été remontée avec les options $expected_options."
+    fi
+  else
+    echo "La partition $mount_point ($description) n'est pas montée."
+  fi
+}
+
+echo " l'imputabilité des actions d'administration "
+
+echo "Vous devez utiliser des comptes dédiés pour chaque administrateur et sudo pour toute commande privilégiée."
+echo "Combien d'administrateurs avez-vous sur votre système ?"
+read nb_admin
+for i in $(seq 1 $nb_admin); do
+  echo "Entrez le nom du compte d'administration dédié pour l'administrateur $i :"
+  read compte
+  echo "Entrez le mot de passe du compte d'administration dédié pour l'administrateur $i :"
+  read -s password
+  adduser --ingroup sudo "$compte"
+  echo "$compte:$password" | chpasswd
+  echo "Le compte $compte a été créé et ajouté au groupe sudo."
+done
+echo "Vous devez désactiver le compte root pour éviter son usage abusif."
+usermod -L -e 1 root
+usermod -s /bin/false root
+echo "Le compte root a été désactivé."
+echo "Vous devez journaliser la création de tout processus avec auditd pour avoir une meilleure traçabilité."
+echo "Voulez-vous installer auditd si ce n'est pas déjà fait ? (o/n)"
+read reponse
+if [ "$reponse" = "o" ]; then
+  apt-get install auditd
+  echo "auditd a été installé."
+fi
+echo "-a exit,always -F arch=b64 -S execve,execveat" >> /etc/audit/rules.d/audit.rules
+echo "-a exit,always -F arch=b32 -S execve,execveat" >> /etc/audit/rules.d/audit.rules
+systemctl restart auditd
+echo "Les règles auditd ont été ajoutées et le service auditd a été redémarré."
+echo "Les actions d'administration nécessitant des privilèges sont maintenant tracées."
+
+
+
+echo "désactiver les comptes de service "
+  comptes="daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-timesync systemd-network systemd-resolve systemd-bus-proxy _apt messagebus sshd uuidd avahi-autoipd usbmux dnsmasq rtkit saned speech-dispatcher hplip pulse avahi colord geoclue gdm Debian-gdm nm-openvpn nm-openconnect"
+  for compte in $comptes; do
+    usermod -L -e 1 $compte
+    usermod -s /bin/false $compte
+    echo "Le compte de service $compte a été désactivé."
+  done
+  echo "Tous les comptes de service ont été désactivés."
+
+
+echo "Le script de configuration de sécurité est terminé."
+

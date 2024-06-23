@@ -1,0 +1,104 @@
+#!/bin/bash
+#!/bin/bash
+sudo apt install policycoreutils
+SELINUX=$(grep ^SELINUX /etc/selinux/config | cut -d= -f2)
+SELINUXTYPE=$(grep ^SELINUXTYPE /etc/selinux/config | cut -d= -f2)
+echo "La valeur actuelle de SELINUX est : $SELINUX"
+echo "La valeur actuelle de SELINUXTYPE est : $SELINUXTYPE"
+read -p "Voulez-vous modifier les valeurs de SELINUX et SELINUXTYPE ? (o/n) " choix
+if [ "$choix" = "o" ] || [ "$choix" = "O" ]; then
+  echo "Quelle valeur voulez-vous pour SELINUX ?"
+  echo "Les valeurs possibles sont :"
+  echo "enforcing : SELinux est activé et applique la politique de sécurité"
+  echo "permissive : SELinux est activé mais n'applique pas la politique de sécurité, seulement des messages d'alerte"
+  echo "disabled : SELinux est désactivé"
+  echo "Le mot recommandé est enforcing"
+  read -p "Entrez votre choix : " SELINUX
+  echo "Quelle valeur voulez-vous pour SELINUXTYPE ?"
+  echo "Les valeurs possibles sont :"
+  echo "targeted : La politique par défaut qui cible les processus potentiellement dangereux"
+  echo "minimum : Une politique qui n'applique que les règles minimales nécessaires"
+  echo "mls : Une politique qui implémente le contrôle d'accès obligatoire multi-niveau"
+  echo "Le mot recommandé est targeted"
+  read -p "Entrez votre choix : " SELINUXTYPE
+  echo "Modification du fichier de configuration /etc/selinux/config..."
+  sed -i "s/^SELINUX=.*/SELINUX=$SELINUX/" /etc/selinux/config
+  sed -i "s/^SELINUXTYPE=.*/SELINUXTYPE=$SELINUXTYPE/" /etc/selinux/config
+  echo "Les variables SELINUX et SELINUXTYPE ont été modifiées avec succès."
+  echo "La nouvelle valeur de SELINUX est $SELINUX"
+  echo "La nouvelle valeur de SELINUXTYPE est $SELINUXTYPE"
+  echo "Installation du paquet selinux-policy-$SELINUXTYPE..."
+  sudo apt install selinux-policy-$SELINUXTYPE
+  echo "Mise à jour du noyau..."
+  sudo apt update
+  sudo apt upgrade linux-image-generic
+  echo "Vérification des labels SELinux..."
+  fixfiles onboot
+fi
+read -p "Voulez-vous redémarrer le système pour que les changements soient pris en compte ? (o/n) " reboot
+if [ "$reboot" = "o" ] || [ "$reboot" = "O" ]; then
+  echo "Redémarrage du système..."
+  sudo reboot
+fi
+echo "Statut de SELinux :"
+sestatus
+
+
+# Confiner les utilisateurs interactifs non privilégiés
+echo "Confiner les utilisateurs interactifs non privilégiés"
+for user in $(getent passwd | awk -F: '$3 >= 1000 {print $1}'); do
+  usermod -Z user_u "$user"
+  echo "L'utilisateur \"$user\" a été confiné avec le contexte user_u"
+done
+
+# Paramétrer les variables SELinux
+echo "Paramétrer les variables SELinux"
+setsebool -P allow_execheap=off
+echo "La variable allow_execheap a été mise à off"
+
+# Interdire aux processus d’avoir une zone mémoire avec des droits en écriture - w - et en exécution - x -
+echo "Interdire aux processus d’avoir une zone mémoire avec des droits en écriture - w - et en exécution - x -"
+setsebool -P allow_execmem=off
+echo "La variable allow_execmem a été mise à off"
+
+# Interdire aux processus le droit de rendre leur pile - stack - exécutable
+echo "Interdire aux processus le droit de rendre leur pile - stack - exécutable"
+setsebool -P allow_execstack=off
+echo "La variable allow_execstack a été mise à off"
+
+# Interdire le chargement dynamique des modules par n’importe quel processus
+echo "Interdire le chargement dynamique des modules par n’importe quel processus"
+setsebool -P secure_mode_insmod=on
+echo "La variable secure_mode_insmod a été mise à on"
+
+# Interdire les logins SSH de se connecter directement en rôle sysadmin
+echo "Interdire les logins SSH de se connecter directement en rôle sysadmin"
+setsebool -P ssh_sysadm_login=off
+echo "La variable ssh_sysadm_login a été mise à off"
+
+# Désactivation de SELinux si activé
+if [ "$(getenforce)" != "Disabled" ]; then
+  echo "Désactivation de SELinux..."
+  sudo setenforce 0
+  sudo sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+  echo "SELinux est désactivé."
+fi
+
+# Désactivation du service setroubleshootd si activé
+if [ "$(systemctl is-active setroubleshootd)" == "active" ]; then
+  echo "Désactivation du service setroubleshootd..."
+  sudo systemctl stop setroubleshootd
+  sudo systemctl disable setroubleshootd
+  echo "Le service setroubleshootd est désactivé."
+fi
+
+# Désinstallation des paquets setroubleshoot, setroubleshoot-server et setroubleshoot-plugins si installés
+if [ $(rpm -q setroubleshoot setroubleshoot-server setroubleshoot-plugins | grep -c "not installed") -eq 0 ]; then
+  echo "Désinstallation des paquets setroubleshoot, setroubleshoot-server et setroubleshoot-plugins..."
+  sudo yum remove -y setroubleshoot setroubleshoot-server setroubleshoot-plugins
+  echo "Les paquets setroubleshoot, setroubleshoot-server et setroubleshoot-plugins sont désinstallés."
+fi
+
+echo "Le script est terminé. Votre système est plus sécurisé."
+
+

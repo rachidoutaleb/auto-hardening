@@ -1,0 +1,153 @@
+#!/bin/bash
+echo ""
+# Fonction pour afficher un message de confirmation
+confirm() {
+    echo -n "$1 [Oui/Non] : "
+    read reponse
+    case $reponse in
+        [oO]|[oO][uU][iI]) return 0;;
+        *) return 1;;
+    esac
+}
+
+# Fonction pour demander une valeur à l'utilisateur
+ask() {
+    echo -n "$1 : "
+    read reponse
+    echo $reponse
+}
+
+check_password() {
+    # On vérifie que le mot de passe n'est pas vide
+    if [ -z "$1" ]; then
+        return 1
+    fi
+    # On vérifie que le mot de passe a au moins 8 caractères
+    if [ ${#1} -lt 8 ]; then
+        return 1
+    fi
+    # On vérifie que le mot de passe contient au moins un chiffre, une lettre minuscule, une lettre majuscule et un caractère spécial
+    if ! [[ "$1" =~ [0-9] && "$1" =~ [a-z] && "$1" =~ [A-Z] && "$1" =~ [^a-zA-Z0-9] ]]; then
+        return 1
+    fi
+    # Si tous les critères sont respectés, on renvoie 0
+    return 0
+}
+
+# Fonction pour activer ou désactiver une option de sécurité
+toggle_option() {
+    # Le premier argument est le nom de l'option, le deuxième est la commande pour l'activer, le troisième est la commande pour la désactiver
+    if confirm "Voulez-vous activer l'option $1 ?"; then
+        eval $2
+        echo "L'option $1 a été activée."
+    else
+        eval $3
+        echo "L'option $1 a été désactivée."
+    fi
+}
+
+afficher_message_vert () {
+  tput setaf 2
+  printf "%s" "$1"
+  tput sgr0
+  echo " "
+}
+
+#1----------------------------------------------------------
+echo ""
+afficher_message_vert "----  Désactivation des comptes utilisateur inutilisés... ----"
+    unused_accounts=$(lastlog -b 180 | awk 'NR>1 {print $1}')
+    for account in $unused_accounts; do
+        if test $(id -u $account) -ge 1000; then
+            if [ -z "$(who | grep $account)" ]; then
+                sudo usermod -L $account
+                echo "Le compte $account a été désactivé."
+            fi
+        fi
+    done
+sudo sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 180\n&/' /etc/login.defs
+echo " Désactiver les comptes utilisateur inutilisés terminée."
+echo ""
+
+
+#3----------------------------------------------------------
+afficher_message_vert "---- Vérification de la complexité de votre mot de passe... ----"
+password=$(grep $(whoami) /etc/shadow | cut -d: -f2)
+if check_password "$password"; then
+    echo "Votre mot de passe est suffisamment complexe."
+else
+    echo "Votre mot de passe n'est pas assez complexe."
+    read -s -p "Veuillez saisir un nouveau mot de passe : " new_password
+    echo  # Retour à la ligne après la saisie du mot de passe
+    while ! check_password "$new_password"; do
+        echo "Le nouveau mot de passe n'est pas assez complexe. Veuillez saisir un autre mot de passe."
+        read -s -p "Veuillez saisir un nouveau mot de passe : " new_password
+        echo
+    done
+    echo "Le nouveau mot de passe est suffisamment complexe. Modification en cours..."
+    passwd $(whoami) <<<"$new_password"
+    echo "Mot de passe modifié avec succès."
+fi
+echo "Vérification de la complexité de votre mot de passe terminée."
+echo ""
+
+#2----------------------------------------------------------
+afficher_message_vert "---- Utilisation de mots de passe robustes...----"
+sudo apt install -y libpam-pwquality
+sudo sed -i 's/^password.*pam_unix\.so.*/password required pam_pwquality.so retry=3 minlen=12 difok=4 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1 reject_username enforce_for_root\n&/' /etc/pam.d/common-password
+echo "password required pam_unix.so sha512 shadow use_authtok remember=5" | sudo tee -a /etc/pam.d/common-password
+sudo sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 180\n&/' /etc/login.defs
+echo "Utilisation de mots de passe robustes terminée."
+echo ""
+
+
+
+#4----------------------------------------------------------
+  afficher_message_vert "---- Éviter les fichiers ou répertoires sans utilisateur ou sans groupe connu ----"
+  echo "Voici la liste des fichiers ou répertoires sans utilisateur ou sans groupe connu :"
+  find / -type f \( -nouser -o -nogroup \) -ls 2>/dev/null
+  saved_stty=$(stty -g)
+  stty -echo
+  read -p "Entrez le nom du propriétaire que vous voulez attribuer à ces fichiers ou répertoires :" owner
+  echo " "
+  read -p "Entrez le nom du groupe que vous voulez attribuer à ces fichiers ou répertoires :" group
+  stty "$saved_stty"
+  find / -type f \( -nouser -o -nogroup \) -exec chown $owner:$group {} \; 2>/dev/null
+  echo -e "\nTerminé! Le propriétaire et le groupe de ces fichiers ou répertoires ont été changés en $owner:$group"
+  echo "terminée."
+  echo " "
+
+#5----------------------------------------------------------
+afficher_message_vert "---- Activer le sticky bit sur les répertoires inscriptibles. ----" 
+find / -type d \( -perm -0002 -a \! -perm -1000 \) -exec chmod +t {} \; 2>/dev/null
+echo "Le sticky bit a été activé sur ces répertoires."
+echo ""
+  
+#6------------------------------------------------------
+afficher_message_vert "----  Changer le propriétaire des répertoires inscriptibles dont le propriétaire en root : ---- "
+find / -type d -perm -0002 -a \! -uid 0 -exec chown root:root {} \; 2>/dev/null
+echo "Le propriétaire de ces répertoires a été changé en root."
+echo ""
+
+#7------------------------------------------------------
+afficher_message_vert "----  Éviter l'usage d'exécutables avec les droits spéciaux setuid et setgid : ---- "
+files=$(find / -type f -perm /6000 -ls 2>/dev/null)
+files=$(echo "$files" | grep -v "root root\|root sudo")
+for file in $files; do
+  chmod u-s $file 2>/dev/null # Retire le droit spécial setuid
+  chmod g-s $file 2>/dev/null # Retire le droit spécial setgid
+done
+chown root:root /usr/bin/sudo
+chmod 4755 /usr/bin/sudo
+echo "terminée."
+echo " "
+
+#8------------------------------------------------------
+
+
+#9------------------------------------------------------ 
+  
+
+
+echo " ---- Configuration système terminée. ---- "
+

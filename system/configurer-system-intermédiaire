@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# Check if UFW is installed
+if command -v ufw &>/dev/null; then
+    echo "UFW is already installed."
+else
+    # Install UFW
+    echo "Installing UFW..."
+    sudo apt-get update
+    sudo apt-get install -y ufw
+    echo "UFW has been installed."
+fi
+
+echo "Activation le pare-feu"
+    ufw enable
+    echo "Le pare-feu est activé"
+
+echo "Configurer la complexité du mot de passe"
+    sed -i 's/pam_cracklib.so/pam_cracklib.so ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1/' /etc/pam.d/common-password
+    echo "La complexité du mot de passe est activée"
+
+echo "Configurer la longueur du mot de passe"
+ read -p "Entrez la longueur minimale du mot de passe: " length
+sed -i "s/minlen=[0-9]*/minlen=$length/" /etc/pam.d/common-password
+
+echo "Configurer la durée de vie du mot de passe"
+echo "Tapez le nombre de jours maximum que vous souhaitez pour la durée de vie du mot de passe"
+ read -p "Entrez le nombre de jours maximum pour la durée de vie du mot de passe: " expire
+sed -i "s/pass_max_days [0-9]*/pass_max_days $expire/" /etc/login.defs
+echo "La durée de vie du mot de passe est de $expire jours"
+
+echo "Configurer le nombre de tentatives de connexion infructueuses"
+echo "La valeur recommandée est de 3 tentatives maximum"
+echo "Tapez le nombre de tentatives maximum que vous souhaitez pour le nombre de tentatives de connexion infructueuses"
+read -p "Entrez le nombre maximum de tentatives de connexion infructueuses: " deny
+sed -i "s/deny=[0-9]*/deny=$deny/" /etc/pam.d/common-auth
+echo "Le nombre de tentatives de connexion infructueuses est de $deny"
+
+
+echo "Configurer la durée du verrouillage de compte"
+echo "La valeur recommandée est de 10 minutes minimum"
+echo "Tapez le nombre de minutes minimum que vous souhaitez pour la durée du verrouillage de compte"
+read -p "Entrez le nombre minimum de minutes pour le verrouillage de compte: " lockout
+sed -i "s/unlock_time=[0-9]*/unlock_time=$lockout/" /etc/pam.d/common-auth
+echo "La durée du verrouillage de compte est de $lockout minutes"
+
+    
+if ! command -v selinux &> /dev/null
+then
+    echo "SELinux n'est pas installé. Installation en cours..."
+    sudo apt install selinux-basics selinux-policy-default
+    echo "SELinux est installé."
+fi
+echo "Activation de SELinux..."
+sudo setenforce 1
+echo "SELinux est activé."
+echo "Ajout des utilisateurs autorisés au groupe sudoers..."
+sudo usermod -aG sudo $(whoami)
+echo "Utilisateurs autorisés ajoutés au groupe sudoers."
+echo "Modification du fichier /etc/sudoers..."
+sudo cp /etc/sudoers /etc/sudoers.bak
+sudo echo "%sudoers ALL=(ALL) /usr/bin/apt, /bin/systemctl, /sbin/reboot" >> /etc/sudoers
+echo "Fichier /etc/sudoers modifié."
+
+echo "Il est recommandé de ne pas monter automatiquement la partition /boot."
+  umount /boot 2> /dev/null
+  sed -i '/\/boot/d' /etc/fstab
+  chmod 700 /boot
+
+echo "modifiée la valeur par défaut de UMASK pour les shells et les services"
+  echo "umask 0077" >> /etc/profile
+  sed -i "s/^UMask=.*/UMask=0027/" /etc/systemd/system.conf
