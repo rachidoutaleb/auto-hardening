@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Define color codes
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+afficher_message_vert() {
+    echo -e "${GRAS}${VERT}$1${NORMAL}"
+}
+
+afficher_message_rouge() {
+    echo -e "${GRAS}${ROUGE}$1${NORMAL}"
+}
+
+# Check if script is run as root
+if [ "$EUID" -ne 0 ]; then
+    afficher_message_rouge "Please run as root"
+    exit 1
+fi
+
+echo ""
+echo -e "\033[45m Applying Minimal Hardware Configuration...\033[0m"
+echo ""
+
+afficher_message_vert "No specific hardware configurations are required at this level."
+afficher_message_vert "However, it's recommended to keep your system up to date:"
+
+# Update the system
+apt update
+apt upgrade -y
+
+echo ""
+echo -e "\033[45m Minimal Hardware Configuration applied successfully\033[0m"
+echo ""

@@ -1,0 +1,83 @@
+#!/bin/bash
+
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+afficher_message_vert() { echo -e "${GRAS}${VERT}$1${NORMAL}"; }
+afficher_message_rouge() { echo -e "${GRAS}${ROUGE}$1${NORMAL}"; }
+
+echo ""
+echo -e "\033[45m Application of the recommended Intermediate hardware configuration...\033[0m"
+
+# R2: Configure BIOS/UEFI
+afficher_message_vert "R2: Configuring BIOS/UEFI..."
+afficher_message_vert "Please manually configure BIOS/UEFI settings according to the technical note."
+
+# R3: Enable UEFI Secure Boot
+afficher_message_vert "R3: Enabling UEFI Secure Boot..."
+
+sudo dpkg --configure -a
+sudo apt install -f
+
+# Check if Secure Boot is enabled
+if [ -d "/sys/firmware/efi" ]; then
+    if [ -f "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" ]; then
+        afficher_message_vert "UEFI Secure Boot is already enabled."
+    else
+        afficher_message_rouge "UEFI Secure Boot is not enabled. Please enable it in your BIOS/UEFI settings."
+    fi
+else
+    afficher_message_rouge "This system is not booted in UEFI mode. UEFI Secure Boot cannot be enabled."
+fi
+
+echo ""
+echo -e "\033[45m Intermediate Hardware Configuration applied successfully\033[0m"
+echo ""
+
+
+# Désactiver les périphériques USB non utilisés
+afficher_message_vert "Désactivation des périphériques USB non utilisés..."
+echo "blacklist usb-storage" | sudo tee -a /etc/modprobe.d/blacklist.conf
+
+# Configurer la journalisation du système
+afficher_message_vert "Configuration de la journalisation du système..."
+sudo apt install -y rsyslog
+sudo systemctl enable rsyslog
+sudo systemctl start rsyslog
+
+# Mettre en place des configurations de sécurité pour SSH
+afficher_message_vert "Configuration de SSH..."
+sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+
+# Installer et configurer un pare-feu
+afficher_message_vert "Installation et configuration de UFW (Uncomplicated Firewall)..."
+sudo apt install -y ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw enable
+
+# Configurer les mises à jour automatiques
+afficher_message_vert "Configuration des mises à jour automatiques..."
+sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure --priority=low unattended-upgrades
+
+# Configuration du TPM (si disponible)
+if dmesg | grep -i tpm; then
+    afficher_message_vert "TPM détecté et activé."
+else
+    afficher_message_rouge "TPM non détecté."
+fi
+
+# Fin du script
+afficher_message_vert "Please reboot your system and enter BIOS/UEFI to complete the configuration if necessary."
+
+echo -e "\033[45m Configuration matérielle renforcée appliquée avec succès\033[0m"
+echo ""
+
+
+

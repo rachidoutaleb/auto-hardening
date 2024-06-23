@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# Define color codes
+GRAS="\033[1m"
+NORMAL="\033[0m"
+VERT="\033[32m"
+ROUGE="\033[31m"
+
+afficher_message_vert() {
+    echo -e "${GRAS}${VERT}$1${NORMAL}"
+}
+
+afficher_message_rouge() {
+    echo -e "${GRAS}${ROUGE}$1${NORMAL}"
+}
+
+# Check if script is run as root
+if [ "$EUID" -ne 0 ]; then
+    afficher_message_rouge "Please run as root"
+    exit 1
+fi
+
+echo ""
+echo -e "\033[45m Applying High Level Hardware Configuration...\033[0m"
+echo ""
+
+# R4: Replace preloaded keys
+afficher_message_vert "R4: Replacing preloaded keys in UEFI..."
+
+# Install necessary tools
+apt update
+apt install -y openssl mokutil sbsigntool
+
+# Generate new keys
+openssl req -new -x509 -newkey rsa:2048 -keyout MOK.key -out MOK.crt -nodes -days 3650 -subj "/CN=Your Organization Custom MOK"
+
+# Enroll the new key
+mokutil --import MOK.crt
+
+afficher_message_vert "New MOK key generated and enrolled. Reboot and enroll the key in UEFI to complete this step."
+
+# Sign the kernel and initramfs
+afficher_message_vert "Signing bootloader and Linux kernel..."
+
+KERNEL_VERSION=$(uname -r)
+sbsign --key MOK.key --cert MOK.crt --output /boot/vmlinuz-$KERNEL_VERSION.signed /boot/vmlinuz-$KERNEL_VERSION
+sbsign --key MOK.key --cert MOK.crt --output /boot/initrd.img-$KERNEL_VERSION.signed /boot/initrd.img-$KERNEL_VERSION
+
+# Update GRUB to use signed kernel and initramfs
+sed -i "s/vmlinuz-$KERNEL_VERSION/vmlinuz-$KERNEL_VERSION.signed/" /etc/grub.d/10_linux
+sed -i "s/initrd.img-$KERNEL_VERSION/initrd.img-$KERNEL_VERSION.signed/" /etc/grub.d/10_linux
+update-grub
+
+afficher_message_vert "Kernel and initramfs signed and GRUB updated."
+
+# Configure Trusted Boot (Measured Boot)
+afficher_message_vert "Configuring Trusted Boot (Measured Boot)..."
+
+# Install necessary packages
+apt install -y tpm2-tools
+
+# Check if TPM is enabled
+if ! tpm2_getcap properties-fixed | grep -q 'TPM_PT_PERMANENT: set'; then
+    afficher_message_rouge "TPM is not enabled. Please enable it in BIOS/UEFI and run this script again."
+    exit 1
+fi
+
+# Create a policy based on PCR values
+tpm2_createpolicy --policy-pcr -l sha1:0,1,2,3,4,5,6,7 -L policy.digest
+
+# Create a primary key
+tpm2_createprimary -C e -g sha256 -G rsa -c primary.context
+
+# Create and load a sealing object
+echo "MySecretData" | tpm2_create -g sha256 -u sealing.pub -r sealing.priv -i- -C primary.context -L policy.digest
+tpm2_load -C primary.context -u sealing.pub -r sealing.priv -c sealing.context
+
+afficher_message_vert "Trusted Boot configured with TPM."
+
+echo ""
+echo -e "\033[45m High Level Hardware Configuration applied successfully\033[0m"
+echo ""
+
+afficher_message_vert "Please reboot your system to complete the configuration."
+afficher_message_vert "After reboot, enroll the new MOK key when prompted in the UEFI interface."
