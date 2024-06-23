@@ -32,7 +32,7 @@ afficher_banniere() {
 
 
 afficher_menu_configuration_systeme() {
-    echo "${GRAS}\033[34mSelect the configuration you wish to perform:${NORMAL}"
+    echo -e "${GRAS}\033[34mSelect the configuration you wish to perform:${NORMAL}"
     echo "1. Hardware configuration"
     echo "2. kernel configuration"
     echo "3. System configuration"
@@ -43,7 +43,7 @@ afficher_menu_configuration_systeme() {
 # Function to display recommendation options
 afficher_options_recommandation() {
     echo " "
-    echo "${GRAS}\033[34mRecommendation options:${NORMAL}"
+    echo -e "${GRAS}\033[34mRecommendation options:${NORMAL}"
     echo "1. Minimal level recommendation"
     echo "2. Intermediate level recommendation"
     echo "3. Enhanced level recommendation"
